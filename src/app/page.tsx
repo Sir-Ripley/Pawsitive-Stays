@@ -29,6 +29,8 @@ interface Verification {
  staffNameOrInitials: string;
  staffRole: string;
  hadDoggyMesses: boolean;
+ leftRoomTidy?: boolean;
+ hadPuddles?: boolean;
  roomConditionRating: number;
  noiseAndRespect: number;
  cratesOrMatsUsed: boolean;
@@ -571,9 +573,11 @@ export default function PawsitiveStaysApp() {
  </span>
  </div>
  <div className="flex items-center gap-4 text-xs text-amber-300 font-semibold">
- <span>Room Condition: {v.roomConditionRating}/5 Paws</span>
+ <span>Pet Parent Rating: {v.roomConditionRating}/5 Paws</span>
  <span>•</span>
- <span>Noise & Respect: {v.noiseAndRespect}/5 Paws</span>
+ <span>Room tidy: {v.leftRoomTidy === false ? 'No' : 'Yes'}</span>
+ <span>•</span>
+ <span>Puddles: {v.hadPuddles ? 'Yes' : 'None'}</span>
  </div>
  {v.staffComments && (
  <p className="text-xs text-slate-300 italic bg-slate-900 p-2.5 rounded-lg border border-slate-800">

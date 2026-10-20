@@ -52,6 +52,12 @@ export async function POST(
  roomNumber,
  staffNameOrInitials,
  staffRole,
+ // Simple questionnaire fields
+ starRating,
+ leftRoomTidy,
+ hadMesses,
+ hadPuddles,
+ // Legacy fields (older clients)
  hadDoggyMesses,
  roomConditionRating,
  noiseAndRespect,
@@ -79,6 +85,14 @@ export async function POST(
  const forwardedFor = req.headers.get('x-forwarded-for') || 'unknown-ip';
  const scannerIpHash = crypto.createHash('sha256').update(forwardedFor).digest('hex');
 
+ // Map the simple questionnaire onto the scoring model (legacy clients supported):
+ // paw rating drives both rating scales, tidy is the room-care bonus signal,
+ // messes or puddles count as a doggy mess.
+ const rating = Math.min(5, Math.max(1, Number(starRating ?? roomConditionRating) || 5));
+ const tidy = leftRoomTidy !== undefined ? Boolean(leftRoomTidy) : cratesOrMatsUsed !== undefined ? Boolean(cratesOrMatsUsed) : true;
+ const puddles = Boolean(hadPuddles);
+ const messes = hadMesses !== undefined ? Boolean(hadMesses) || puddles : Boolean(hadDoggyMesses) || puddles;
+
  // Create the verification entry
  const verification = await prisma.staffVerification.create({
  data: {
@@ -89,11 +103,13 @@ export async function POST(
  roomNumber: String(roomNumber).trim(),
  staffNameOrInitials: String(staffNameOrInitials).trim(),
  staffRole: staffRole ? String(staffRole).trim() : 'Housekeeping / Staff',
- hadDoggyMesses: Boolean(hadDoggyMesses),
- roomConditionRating: Number(roomConditionRating) || 5,
- noiseAndRespect: Number(noiseAndRespect) || 5,
- cratesOrMatsUsed: Boolean(cratesOrMatsUsed),
- wouldWelcomeBack: Boolean(wouldWelcomeBack),
+ hadDoggyMesses: messes,
+ leftRoomTidy: tidy,
+ hadPuddles: puddles,
+ roomConditionRating: rating,
+ noiseAndRespect: rating,
+ cratesOrMatsUsed: tidy,
+ wouldWelcomeBack: wouldWelcomeBack !== undefined ? Boolean(wouldWelcomeBack) : true,
  staffComments: staffComments ? String(staffComments).trim() : null,
  scannerIpHash,
  },

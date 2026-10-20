@@ -48,10 +48,12 @@ model StaffVerification {
  staffNameOrInitials String
  staffRole String @default("Housekeeping / Room Attendant")
 
- // Core Inspection Questions
- hadDoggyMesses Boolean @default(false) // False = No messes (Good!)
- roomConditionRating Int // 1 to 5 scale
- noiseAndRespect Int // 1 to 5 scale
+ // Core Inspection Questions (simple questionnaire)
+ hadDoggyMesses Boolean @default(false) // Messes OR puddles (drives score + streak)
+ leftRoomTidy Boolean @default(true) // "Did they leave the room tidy?"
+ hadPuddles Boolean @default(false) // "Any puddles (potty accidents)?"
+ roomConditionRating Int // 1 to 5 scale (the pet-parent paw rating)
+ noiseAndRespect Int // 1 to 5 scale (mirrors the paw rating)
  cratesOrMatsUsed Boolean @default(true)
  wouldWelcomeBack Boolean @default(true)
  staffComments String?

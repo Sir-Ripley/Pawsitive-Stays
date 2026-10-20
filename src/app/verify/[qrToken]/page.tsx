@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Dog, CheckCircle2, AlertTriangle, Sparkles, ShieldCheck } from 'lucide-react';
+import { PawPrint, CheckCircle2, AlertTriangle, Sparkles, Droplets, ShieldCheck } from 'lucide-react';
 
 interface ScannedPetParent {
  id: string;
@@ -32,11 +32,11 @@ export default function StaffScanVerifyPage() {
  const [roomNumber, setRoomNumber] = useState('');
  const [staffNameOrInitials, setStaffNameOrInitials] = useState('');
  const [staffRole, setStaffRole] = useState('Housekeeping / Room Attendant');
- const [hadDoggyMesses, setHadDoggyMesses] = useState(false);
- const [roomConditionRating, setRoomConditionRating] = useState(5);
- const [noiseAndRespect, setNoiseAndRespect] = useState(5);
- const [cratesOrMatsUsed, setCratesOrMatsUsed] = useState(true);
- const [wouldWelcomeBack, setWouldWelcomeBack] = useState(true);
+ // Simple questionnaire: one paw rating + three yes/no questions
+ const [starRating, setStarRating] = useState(5);
+ const [leftRoomTidy, setLeftRoomTidy] = useState(true);
+ const [hadMesses, setHadMesses] = useState(false);
+ const [hadPuddles, setHadPuddles] = useState(false);
  const [staffComments, setStaffComments] = useState('');
 
  useEffect(() => {
@@ -70,11 +70,10 @@ export default function StaffScanVerifyPage() {
  roomNumber,
  staffNameOrInitials,
  staffRole,
- hadDoggyMesses,
- roomConditionRating,
- noiseAndRespect,
- cratesOrMatsUsed,
- wouldWelcomeBack,
+ starRating,
+ leftRoomTidy,
+ hadMesses,
+ hadPuddles,
  staffComments,
  }),
  });
@@ -159,111 +158,137 @@ export default function StaffScanVerifyPage() {
 
  {/* 20-Second Room Condition Form */}
  <form onSubmit={handleSubmitInspection} className="p-6 space-y-5">
- {/* Question 1: Any Doggy Messes? */}
+ {/* Question 1: Puppy-Paw Pet Parent Rating */}
+ <div>
+ <label className="block text-base font-black text-white mb-1 text-center">
+ 1. Rate this pet parent
+ </label>
+ <p className="text-xs text-slate-400 text-center mb-3">Tap the paws — 5 is a model guest!</p>
+ <div className="flex justify-center gap-2">
+ {[1, 2, 3, 4, 5].map((rating) => (
+ <button
+ key={rating}
+ type="button"
+ aria-label={`${rating} paw rating`}
+ onClick={() => setStarRating(rating)}
+ className={`w-14 h-14 rounded-2xl border transition flex items-center justify-center ${
+ starRating >= rating
+ ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105'
+ : 'bg-slate-950 border-slate-800 text-slate-600'
+ }`}
+ >
+ <PawPrint className="w-8 h-8" />
+ </button>
+ ))}
+ </div>
+ <div className="text-center text-sm font-bold text-amber-400 mt-2">
+ {['', 'Rough stay', 'Needs work', 'Okay', 'Great guest!', 'Excellent pet parent!'][starRating]}
+ </div>
+ </div>
+
+ {/* Question 2: Room Tidy? */}
  <div>
  <label className="block text-sm font-bold text-white mb-2">
- 1. Were there any doggy messes left in the room? *
+ 2. Did they leave the room tidy?
  </label>
  <div className="grid grid-cols-2 gap-3">
  <button
  type="button"
- onClick={() => setHadDoggyMesses(false)}
+ onClick={() => setLeftRoomTidy(true)}
  className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
- !hadDoggyMesses
+ leftRoomTidy
+ ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold'
+ : 'bg-slate-950 border-slate-800 text-slate-400'
+ }`}
+ >
+ <Sparkles className="w-5 h-5 shrink-0" />
+ <div className="text-sm">Yes, tidy!</div>
+ </button>
+ <button
+ type="button"
+ onClick={() => setLeftRoomTidy(false)}
+ className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+ !leftRoomTidy
+ ? 'bg-rose-500/20 border-rose-400 text-rose-300 font-bold'
+ : 'bg-slate-950 border-slate-800 text-slate-400'
+ }`}
+ >
+ <AlertTriangle className="w-5 h-5 shrink-0" />
+ <div className="text-sm">Not really</div>
+ </button>
+ </div>
+ </div>
+
+ {/* Question 3: Any Messes? */}
+ <div>
+ <label className="block text-sm font-bold text-white mb-2">
+ 3. Any messes left behind?
+ </label>
+ <div className="grid grid-cols-2 gap-3">
+ <button
+ type="button"
+ onClick={() => setHadMesses(false)}
+ className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+ !hadMesses
  ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold'
  : 'bg-slate-950 border-slate-800 text-slate-400'
  }`}
  >
  <Sparkles className="w-5 h-5 shrink-0" />
  <div>
- <div className="text-sm">No Messes!</div>
+ <div className="text-sm">None!</div>
  <div className="text-[11px] opacity-80">Clean & well-kept</div>
  </div>
  </button>
-
  <button
  type="button"
- onClick={() => setHadDoggyMesses(true)}
+ onClick={() => setHadMesses(true)}
  className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
- hadDoggyMesses
+ hadMesses
  ? 'bg-rose-500/20 border-rose-400 text-rose-300 font-bold'
  : 'bg-slate-950 border-slate-800 text-slate-400'
  }`}
  >
  <AlertTriangle className="w-5 h-5 shrink-0" />
  <div>
- <div className="text-sm">Yes, Mess Found</div>
- <div className="text-[11px] opacity-80">Required extra cleanup</div>
+ <div className="text-sm">Yes, a mess</div>
+ <div className="text-[11px] opacity-80">Extra cleanup needed</div>
  </div>
  </button>
  </div>
  </div>
 
- {/* Question 2: Overall Room Condition (1-5 Paws) */}
+ {/* Question 4: Any Puddles? */}
  <div>
  <label className="block text-sm font-bold text-white mb-2">
- 2. How did the pet parent leave the overall condition of the room?
+ 4. Any puddles? (potty accidents)
  </label>
- <div className="grid grid-cols-5 gap-2">
- {[1, 2, 3, 4, 5].map((rating) => (
+ <div className="grid grid-cols-2 gap-3">
  <button
- key={rating}
  type="button"
- onClick={() => setRoomConditionRating(rating)}
- className={`py-3 rounded-xl font-black text-sm border transition flex flex-col items-center gap-1 ${
- roomConditionRating >= rating
- ? 'bg-amber-500 text-slate-950 border-amber-400'
- : 'bg-slate-950 text-slate-500 border-slate-800'
+ onClick={() => setHadPuddles(false)}
+ className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+ !hadPuddles
+ ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-bold'
+ : 'bg-slate-950 border-slate-800 text-slate-400'
  }`}
  >
- <Dog className="w-4 h-4" />
- {rating}
+ <Sparkles className="w-5 h-5 shrink-0" />
+ <div className="text-sm">None — all dry!</div>
  </button>
- ))}
- </div>
- </div>
-
- {/* Question 3: Noise & Respect (1-5 Paws) */}
- <div>
- <label className="block text-sm font-bold text-white mb-2">
- 3. How quiet and respectful was the stay? (Noise, hallway behavior, other guests)
- </label>
- <div className="grid grid-cols-5 gap-2">
- {[1, 2, 3, 4, 5].map((rating) => (
  <button
- key={rating}
  type="button"
- onClick={() => setNoiseAndRespect(rating)}
- className={`py-3 rounded-xl font-black text-sm border transition flex flex-col items-center gap-1 ${
- noiseAndRespect >= rating
- ? 'bg-amber-500 text-slate-950 border-amber-400'
- : 'bg-slate-950 text-slate-500 border-slate-800'
+ onClick={() => setHadPuddles(true)}
+ className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+ hadPuddles
+ ? 'bg-sky-500/20 border-sky-400 text-sky-300 font-bold'
+ : 'bg-slate-950 border-slate-800 text-slate-400'
  }`}
  >
- <Dog className="w-4 h-4" />
- {rating}
+ <Droplets className="w-5 h-5 shrink-0" />
+ <div className="text-sm">Yes, puddles</div>
  </button>
- ))}
  </div>
- <div className="text-[11px] text-slate-500 mt-1.5">5 = Silent & courteous · 1 = Sustained barking / complaints</div>
- </div>
-
- {/* Question 4: Crates / Furniture Respect */}
- <div className="flex items-center justify-between bg-slate-950 border border-slate-800 p-3.5 rounded-2xl">
- <div>
- <div className="text-sm font-bold text-white">
- Furniture, Towels & Carpets Respected?
- </div>
- <div className="text-xs text-slate-400">
- Crates/mats used or room left free of damage
- </div>
- </div>
- <input
- type="checkbox"
- checked={cratesOrMatsUsed}
- onChange={(e) => setCratesOrMatsUsed(e.target.checked)}
- className="w-5 h-5 accent-amber-500 rounded"
- />
  </div>
 
  {/* Hotel & Room Verification Details */}
