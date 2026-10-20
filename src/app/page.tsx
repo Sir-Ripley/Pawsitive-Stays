@@ -24,6 +24,8 @@ import {
  ArrowLeft,
  Send,
  X,
+ Facebook,
+ Users,
 } from 'lucide-react';
 
 interface Verification {
@@ -100,6 +102,15 @@ interface ForumPostItem {
  author: ForumAuthor;
 }
 
+interface FriendSuggestion {
+ name: string;
+ handle: string;
+ dogsSummary: string;
+ pawsitiveScore: number;
+ tierBadge: string;
+ verifiedStaysCount: number;
+}
+
 interface ForumThreadItem {
  id: string;
  title: string;
@@ -141,6 +152,11 @@ export default function PawsitiveStaysApp() {
  homeCityState: '',
  });
 
+ // Friends (Facebook-connected members you may know)
+ const [friends, setFriends] = useState<FriendSuggestion[]>([]);
+ const [facebookConnected, setFacebookConnected] = useState(false);
+ const [forgotSent, setForgotSent] = useState(false);
+
  // Forum States
  const [forumThreads, setForumThreads] = useState<ForumThreadItem[]>([]);
  const [openThread, setOpenThread] = useState<(ForumThreadItem & { posts: ForumPostItem[] }) | null>(null);
@@ -177,6 +193,7 @@ export default function PawsitiveStaysApp() {
  function applyProfile(p: PetParentProfile) {
  setUser(p);
  setProfile(p);
+ loadFriends();
  setEditName(p.name);
  setEditKennel(p.akcClubOrKennel || '');
  setEditDogs(p.dogsSummary || '');
@@ -211,6 +228,12 @@ export default function PawsitiveStaysApp() {
  console.error('Initialization error:', err);
  } finally {
  setLoading(false);
+ }
+ const urlParams = new URLSearchParams(window.location.search);
+ if (urlParams.get('authError')) {
+ setAuthMode('login');
+ setAuthError("Facebook sign-in didn't complete — try again, or use your email below.");
+ setShowAuth(true);
  }
  }
  initData();
@@ -248,10 +271,37 @@ export default function PawsitiveStaysApp() {
  }
  }
 
+ async function loadFriends() {
+ try {
+ const res = await fetch('/api/friends');
+ if (!res.ok) return;
+ const data = await res.json();
+ if (data.friends) setFriends(data.friends);
+ setFacebookConnected(Boolean(data.facebookConnected));
+ } catch {
+ /* friends are a bonus — never block the app */
+ }
+ }
+
+ async function handleForgotPassword() {
+ if (!authForm.email) {
+ setAuthError('Enter your email above first, then tap Forgot Password.');
+ return;
+ }
+ const res = await fetch('/api/auth/forgot', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ email: authForm.email }),
+ });
+ if (res.ok) setForgotSent(true);
+ }
+
  async function handleLogout() {
  await fetch('/api/auth/logout', { method: 'POST' });
  setUser(null);
  setProfile(null);
+ setFriends([]);
+ setFacebookConnected(false);
  setActiveTab('community-hotels');
  }
 
@@ -988,6 +1038,43 @@ export default function PawsitiveStaysApp() {
  </div>
  )}
 
+ {user && (
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+ <h3 className="font-bold text-white text-sm flex items-center gap-2">
+ <Users className="w-4 h-4 text-amber-400" /> Pet Parents You May Know
+ </h3>
+ {friends.length > 0 ? (
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+ {friends.map((f) => (
+ <div key={f.handle} className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between gap-3">
+ <div>
+ <div className="text-sm font-bold text-white">{f.name}</div>
+ <div className="text-xs text-slate-400">
+ @{f.handle} · {f.dogsSummary || 'Dog parent'}
+ </div>
+ <div className="text-[11px] text-amber-300 font-semibold mt-0.5">
+ {f.tierBadge} · {f.verifiedStaysCount} verified stays
+ </div>
+ </div>
+ <span className="text-lg font-black text-amber-400">{f.pawsitiveScore}</span>
+ </div>
+ ))}
+ </div>
+ ) : facebookConnected ? (
+ <p className="text-xs text-slate-400 mt-2">
+ None of your Facebook friends are on Pawsitive Stays yet — invite them to join and they&apos;ll show up here!
+ </p>
+ ) : (
+ <p className="text-xs text-slate-400 mt-2">
+ <a href="/api/auth/facebook" className="text-[#4d9fff] font-bold hover:underline">
+ Connect Facebook
+ </a>{' '}
+ to instantly find friends who are already members here.
+ </p>
+ )}
+ </div>
+ )}
+
  <div className="space-y-3">
  {forumLoading && <p className="text-sm text-slate-500">Loading discussion...</p>}
  {forumThreads.map((thread) => (
@@ -1341,6 +1428,19 @@ export default function PawsitiveStaysApp() {
  </button>
  </div>
 
+ <a
+ href="/api/auth/facebook"
+ className="flex items-center justify-center gap-2 w-full bg-[#1877F2] hover:bg-[#1667d6] text-white font-bold py-2.5 rounded-xl text-sm transition mb-3"
+ >
+ <Facebook className="w-4 h-4" />
+ Continue with Facebook
+ </a>
+ <div className="flex items-center gap-3 mb-4">
+ <div className="flex-1 h-px bg-slate-800" />
+ <span className="text-[11px] text-slate-500 font-semibold">or with email</span>
+ <div className="flex-1 h-px bg-slate-800" />
+ </div>
+
  {authError && (
  <div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 mb-3">
  {authError}
@@ -1449,6 +1549,20 @@ export default function PawsitiveStaysApp() {
  : 'Sign In'}
  </button>
  </form>
+
+ {authMode === 'login' &&
+ (forgotSent ? (
+ <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3.5 py-2.5 mt-3">
+ If an account with that email exists, a reset link is on its way. Check your inbox (and spam folder). 🐾
+ </p>
+ ) : (
+ <button
+ onClick={handleForgotPassword}
+ className="w-full text-center text-xs font-semibold text-amber-300 hover:text-amber-200 mt-3"
+ >
+ Forgot your password?
+ </button>
+ ))}
  </div>
  </div>
  )}

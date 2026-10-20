@@ -19,6 +19,10 @@ model PetParent {
  id String @id @default(cuid())
  email String @unique
  passwordHash String? // null = pre-auth profile (claimable at signup)
+ facebookId String? @unique
+ facebookFriendIds String[] @default([]) // FB friends who also use the app (refreshed at FB login)
+ resetTokenHash String? // SHA-256 of the emailed reset token
+ resetTokenExpiresAt DateTime?
  name String
  handle String @unique
  dogNames String? // Intake: "Vanya & Lila"
