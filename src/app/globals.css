@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+ body {
+ background: #ffffff !important;
+ color: #000000 !important;
+ }
+ .no-print {
+ display: none !important;
+ }
+ .print-only-card {
+ box-shadow: none !important;
+ border: 2px dashed #1e293b !important;
+ margin: 0 auto !important;
+ width: 100% !important;
+ max-width: 5.5in !important;
+ page-break-inside: avoid;
+ }
+}

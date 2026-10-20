@@ -1,0 +1,93 @@
+generator client {
+ provider = "prisma-client-js"
+}
+
+datasource db {
+ provider = "postgresql"
+ url = env("POSTGRES_PRISMA_URL")
+ directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+enum DepositType {
+ REFUNDABLE
+ NON_REFUNDABLE
+ PER_NIGHT
+ WAIVED_NONE
+}
+
+model PetParent {
+ id String @id @default(cuid())
+ email String @unique
+ name String
+ handle String @unique
+ qrToken String @unique @default(cuid())
+ akcClubOrKennel String? // e.g., "AKC Exhibitor / Kennel Name"
+ dogsSummary String @default("2 Well-Behaved Show Dogs")
+ customCardHeadline String @default("Thank You for Having Us!")
+ customCardMessage String @default("Thank you for Having Us! Please scan the QR code and tell us how we did as pet parents.")
+ pawsitiveScore Int @default(100)
+ tierBadge String @default("Gold Standard Pet Parent")
+ verifiedStaysCount Int @default(0)
+ cleanRoomStreak Int @default(0)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+ verifications StaffVerification[]
+ hotelReviews HotelReview[]
+}
+
+model StaffVerification {
+ id String @id @default(cuid())
+ petParentId String
+ petParent PetParent @relation(fields: [petParentId], references: [id], onDelete: Cascade)
+
+ hotelName String
+ hotelChain String?
+ cityState String
+ roomNumber String
+ staffNameOrInitials String
+ staffRole String @default("Housekeeping / Room Attendant")
+
+ // Core Inspection Questions
+ hadDoggyMesses Boolean @default(false) // False = No messes (Good!)
+ roomConditionRating Int // 1 to 5 scale
+ noiseAndRespect Int // 1 to 5 scale
+ cratesOrMatsUsed Boolean @default(true)
+ wouldWelcomeBack Boolean @default(true)
+ staffComments String?
+
+ // Anti-Abuse Metadata
+ scannerIpHash String?
+ verifiedAt DateTime @default(now())
+
+ @@index([petParentId])
+}
+
+model HotelReview {
+ id String @id @default(cuid())
+ authorId String
+ author PetParent @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+ hotelName String
+ hotelChain String // e.g., "La Quinta", "Red Roof Inn", "Days Inn", "Hilton"
+ city String
+ state String
+ nearestShowSite String? // e.g., "Canfield Fairgrounds", "Ohio Expo Center"
+
+ // Deposit & Policy Financials
+ depositAmount Float // Dollar amount (e.g., 50.00, 0.00, 150.00)
+ depositType DepositType @default(NON_REFUNDABLE)
+ maxDogsAllowed Int @default(2)
+ weightLimitLbs Int? // null if no weight limit
+ acceptsShowSetup Boolean @default(true) // Ground floor / easy crate loading
+
+ // Ratings & Community Discussion
+ overallRating Int // 1 to 5
+ pottyAreaRating Int // 1 to 5 (Grass quality, lighting, safety at night)
+ reviewBody String
+ helpfulCount Int @default(0)
+ createdAt DateTime @default(now())
+
+ @@index([state, city])
+ @@index([hotelChain])
+}
