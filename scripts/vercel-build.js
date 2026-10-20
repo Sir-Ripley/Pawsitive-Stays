@@ -29,7 +29,7 @@ process.env.POSTGRES_PRISMA_URL = pooled;
 process.env.POSTGRES_URL_NON_POOLING = direct;
 console.log('[vercel-build] Database env resolved. Running prisma generate, db push, next build.');
 
-for (const cmd of ['npx prisma generate', 'npx prisma db push', 'npx next build']) {
+for (const cmd of ['npx prisma generate', 'npx prisma db push --accept-data-loss', 'npx next build']) {
   console.log(`[vercel-build] $ ${cmd}`);
   execSync(cmd, { stdio: 'inherit', env: process.env });
 }
