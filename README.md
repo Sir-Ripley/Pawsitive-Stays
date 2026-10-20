@@ -22,3 +22,5 @@ Database connection strings are injected by the connected Neon store (`POSTGRES_
 
 ## License
 Apache 2.0 © R&R Droids — Rodney A. Ripley Jr.
+
+<!-- deploy retry 2026-10-20 (previous attempt hit a builder error; no content change) -->
