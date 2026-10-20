@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { DepositType } from '@prisma/client';
+import { getSessionUserId } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
  try {
@@ -138,13 +139,17 @@ export async function POST(req: NextRequest) {
  reviewBody,
  } = body;
 
- if (!authorId || !hotelName || !city || !state || !reviewBody) {
+ // The signed-in user is always the author when a session exists.
+ const sessionUserId = await getSessionUserId();
+ const effectiveAuthorId = sessionUserId || authorId;
+
+ if (!effectiveAuthorId || !hotelName || !city || !state || !reviewBody) {
  return NextResponse.json({ error: 'Missing required hotel review fields' }, { status: 400 });
  }
 
  const newReview = await prisma.hotelReview.create({
  data: {
- authorId,
+ authorId: effectiveAuthorId,
  hotelName: String(hotelName).trim(),
  hotelChain: String(hotelChain || 'Independent').trim(),
  city: String(city).trim(),

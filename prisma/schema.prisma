@@ -18,8 +18,12 @@ enum DepositType {
 model PetParent {
  id String @id @default(cuid())
  email String @unique
+ passwordHash String? // null = pre-auth profile (claimable at signup)
  name String
  handle String @unique
+ dogNames String? // Intake: "Vanya & Lila"
+ dogBreed String? // Intake: "Dachshund"
+ homeCityState String? // Intake: home base for local hotel intel
  qrToken String @unique @default(cuid())
  akcClubOrKennel String? // e.g., "AKC Exhibitor / Kennel Name"
  dogsSummary String @default("2 Well-Behaved Show Dogs")
@@ -34,6 +38,33 @@ model PetParent {
 
  verifications StaffVerification[]
  hotelReviews HotelReview[]
+ forumThreads ForumThread[]
+ forumPosts ForumPost[]
+}
+
+model ForumThread {
+ id String @id @default(cuid())
+ authorId String
+ author PetParent @relation(fields: [authorId], references: [id], onDelete: Cascade)
+ title String
+ category String @default("Hotel Talk") // Hotel Talk | Show Circuit | Tips & Tricks | Introductions
+ body String
+ createdAt DateTime @default(now())
+ posts ForumPost[]
+
+ @@index([createdAt])
+}
+
+model ForumPost {
+ id String @id @default(cuid())
+ threadId String
+ thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+ authorId String
+ author PetParent @relation(fields: [authorId], references: [id], onDelete: Cascade)
+ body String
+ createdAt DateTime @default(now())
+
+ @@index([threadId])
 }
 
 model StaffVerification {

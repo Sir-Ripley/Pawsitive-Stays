@@ -18,6 +18,12 @@ import {
  Search,
  ExternalLink,
  Edit3,
+ MessagesSquare,
+ LogOut,
+ MessageCircle,
+ ArrowLeft,
+ Send,
+ X,
 } from 'lucide-react';
 
 interface Verification {
@@ -80,8 +86,34 @@ interface HotelReview {
  };
 }
 
+interface ForumAuthor {
+ name: string;
+ handle: string;
+ pawsitiveScore: number;
+ tierBadge: string;
+}
+
+interface ForumPostItem {
+ id: string;
+ body: string;
+ createdAt: string;
+ author: ForumAuthor;
+}
+
+interface ForumThreadItem {
+ id: string;
+ title: string;
+ category: string;
+ body: string;
+ createdAt: string;
+ author: ForumAuthor;
+ _count?: { posts: number };
+ posts?: { createdAt: string }[] | ForumPostItem[];
+}
+
 export default function PawsitiveStaysApp() {
- const [activeTab, setActiveTab] = useState<'profile-qr' | 'community-hotels'>('profile-qr');
+ const [activeTab, setActiveTab] = useState<'profile-qr' | 'community-hotels' | 'forum'>('profile-qr');
+ const [user, setUser] = useState<PetParentProfile | null>(null);
  const [profile, setProfile] = useState<PetParentProfile | null>(null);
  const [loading, setLoading] = useState(true);
  const [inPersonPhoneMode, setInPersonPhoneMode] = useState(false);
@@ -93,6 +125,28 @@ export default function PawsitiveStaysApp() {
  const [editDogs, setEditDogs] = useState('');
  const [editHeadline, setEditHeadline] = useState('');
  const [editMessage, setEditMessage] = useState('');
+
+ // Auth (login / signup) States
+ const [showAuth, setShowAuth] = useState(false);
+ const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
+ const [authError, setAuthError] = useState('');
+ const [authBusy, setAuthBusy] = useState(false);
+ const [authForm, setAuthForm] = useState({
+ name: '',
+ email: '',
+ password: '',
+ dogNames: '',
+ dogBreed: '',
+ akcClubOrKennel: '',
+ homeCityState: '',
+ });
+
+ // Forum States
+ const [forumThreads, setForumThreads] = useState<ForumThreadItem[]>([]);
+ const [openThread, setOpenThread] = useState<(ForumThreadItem & { posts: ForumPostItem[] }) | null>(null);
+ const [forumLoading, setForumLoading] = useState(false);
+ const [newThread, setNewThread] = useState({ title: '', category: 'Hotel Talk', body: '' });
+ const [replyBody, setReplyBody] = useState('');
 
  // Tab 2: Community Hotel States
  const [hotelReviews, setHotelReviews] = useState<HotelReview[]>([]);
@@ -120,18 +174,8 @@ export default function PawsitiveStaysApp() {
  const origin =
  typeof window !== 'undefined' ? window.location.origin : 'https://pawsitive-stays.vercel.app';
 
- useEffect(() => {
- async function initData() {
- try {
- const [profRes, hotRes] = await Promise.all([
- fetch('/api/profile?handle=sir-ripley'),
- fetch('/api/hotels'),
- ]);
- const profData = await profRes.json();
- const hotData = await hotRes.json();
-
- if (profData.profile) {
- const p = profData.profile;
+ function applyProfile(p: PetParentProfile) {
+ setUser(p);
  setProfile(p);
  setEditName(p.name);
  setEditKennel(p.akcClubOrKennel || '');
@@ -142,8 +186,26 @@ export default function PawsitiveStaysApp() {
  'Thank you for Having Us! Please scan the QR code and tell us how we did as pet parents.'
  );
  }
+
+ useEffect(() => {
+ async function initData() {
+ try {
+ const [meRes, hotRes, forumRes] = await Promise.all([
+ fetch('/api/auth/me'),
+ fetch('/api/hotels'),
+ fetch('/api/forum'),
+ ]);
+ if (meRes.ok) {
+ const meData = await meRes.json();
+ if (meData.profile) applyProfile(meData.profile);
+ }
+ const hotData = await hotRes.json();
  if (hotData.reviews) {
  setHotelReviews(hotData.reviews);
+ }
+ const forumData = await forumRes.json();
+ if (forumData.threads) {
+ setForumThreads(forumData.threads);
  }
  } catch (err) {
  console.error('Initialization error:', err);
@@ -153,6 +215,94 @@ export default function PawsitiveStaysApp() {
  }
  initData();
  }, []);
+
+ async function handleAuthSubmit(e: React.FormEvent) {
+ e.preventDefault();
+ setAuthBusy(true);
+ setAuthError('');
+ try {
+ const endpoint = authMode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+ const payload =
+ authMode === 'signup'
+ ? authForm
+ : { email: authForm.email, password: authForm.password };
+ const res = await fetch(endpoint, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(payload),
+ });
+ const data = await res.json();
+ if (!res.ok) {
+ setAuthError(data.error || 'Something went wrong. Please try again.');
+ return;
+ }
+ if (data.profile) {
+ applyProfile(data.profile);
+ setShowAuth(false);
+ setActiveTab('profile-qr');
+ }
+ } catch {
+ setAuthError('Network error. Please try again.');
+ } finally {
+ setAuthBusy(false);
+ }
+ }
+
+ async function handleLogout() {
+ await fetch('/api/auth/logout', { method: 'POST' });
+ setUser(null);
+ setProfile(null);
+ setActiveTab('community-hotels');
+ }
+
+ async function refreshThreads() {
+ const res = await fetch('/api/forum');
+ const data = await res.json();
+ if (data.threads) setForumThreads(data.threads);
+ }
+
+ async function handleOpenThread(threadId: string) {
+ setForumLoading(true);
+ try {
+ const res = await fetch(`/api/forum/${threadId}`);
+ const data = await res.json();
+ if (data.thread) setOpenThread(data.thread);
+ } finally {
+ setForumLoading(false);
+ }
+ }
+
+ async function handleCreateThread(e: React.FormEvent) {
+ e.preventDefault();
+ if (!user) return;
+ const res = await fetch('/api/forum', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(newThread),
+ });
+ const data = await res.json();
+ if (data.thread) {
+ setNewThread({ title: '', category: 'Hotel Talk', body: '' });
+ await refreshThreads();
+ handleOpenThread(data.thread.id);
+ }
+ }
+
+ async function handleReply(e: React.FormEvent) {
+ e.preventDefault();
+ if (!user || !openThread || !replyBody.trim()) return;
+ const res = await fetch(`/api/forum/${openThread.id}`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ body: replyBody }),
+ });
+ const data = await res.json();
+ if (data.post) {
+ setOpenThread({ ...openThread, posts: [...openThread.posts, data.post] });
+ setReplyBody('');
+ refreshThreads();
+ }
+ }
 
  async function handleSaveCardCustomization(e: React.FormEvent) {
  e.preventDefault();
@@ -172,7 +322,10 @@ export default function PawsitiveStaysApp() {
  }),
  });
  const data = await res.json();
- if (data.profile) setProfile(data.profile);
+ if (data.profile) {
+ setProfile(data.profile);
+ setUser(data.profile);
+ }
  } finally {
  setSavingCard(false);
  }
@@ -223,7 +376,7 @@ export default function PawsitiveStaysApp() {
  return matchText && matchType;
  });
 
- if (loading || !profile) {
+ if (loading) {
  return (
  <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
  <div className="animate-pulse flex items-center gap-3 text-amber-400 font-semibold text-lg">
@@ -234,7 +387,7 @@ export default function PawsitiveStaysApp() {
  );
  }
 
- const scanUrl = `${origin}/verify/${profile.qrToken}`;
+ const scanUrl = profile ? `${origin}/verify/${profile.qrToken}` : '';
 
  return (
  <div className="min-h-screen bg-slate-950 text-slate-100 pb-20">
@@ -258,7 +411,8 @@ export default function PawsitiveStaysApp() {
  </div>
  </div>
 
- {/* Primary 2-Tab Switcher */}
+ {/* Primary Tab Switcher + Account */}
+ <div className="flex flex-wrap items-center gap-3">
  <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
  <button
  onClick={() => setActiveTab('profile-qr')}
@@ -269,7 +423,7 @@ export default function PawsitiveStaysApp() {
  }`}
  >
  <QrCode className="w-4 h-4" />
- My Profile & Leave-Behind QR
+ My Profile & QR
  </button>
  <button
  onClick={() => setActiveTab('community-hotels')}
@@ -280,8 +434,49 @@ export default function PawsitiveStaysApp() {
  }`}
  >
  <Building2 className="w-4 h-4" />
- Hotel Deposit Community ({hotelReviews.length})
+ Hotels ({hotelReviews.length})
  </button>
+ <button
+ onClick={() => { setActiveTab('forum'); setOpenThread(null); }}
+ className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
+ activeTab === 'forum'
+ ? 'bg-amber-500 text-slate-950 shadow'
+ : 'text-slate-400 hover:text-white'
+ }`}
+ >
+ <MessagesSquare className="w-4 h-4" />
+ Forum
+ </button>
+ </div>
+
+ {user ? (
+ <div className="flex items-center gap-2">
+ <span className="text-xs font-semibold text-slate-300 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl">
+ 🐾 {user.name} · {user.pawsitiveScore}/100
+ </span>
+ <button
+ onClick={handleLogout}
+ className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl border border-slate-700 transition"
+ >
+ <LogOut className="w-3.5 h-3.5" /> Sign Out
+ </button>
+ </div>
+ ) : (
+ <div className="flex items-center gap-2">
+ <button
+ onClick={() => { setAuthMode('login'); setAuthError(''); setShowAuth(true); }}
+ className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-700 transition"
+ >
+ Sign In
+ </button>
+ <button
+ onClick={() => { setAuthMode('signup'); setAuthError(''); setShowAuth(true); }}
+ className="text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl transition"
+ >
+ Join Free
+ </button>
+ </div>
+ )}
  </div>
  </div>
  </header>
@@ -289,6 +484,7 @@ export default function PawsitiveStaysApp() {
  {/* Main Content Container */}
  <main className="max-w-6xl mx-auto px-4 pt-8">
  {activeTab === 'profile-qr' ? (
+ user && profile ? (
  <div className="space-y-8">
  {/* Reputation Banner (Hidden on Print) */}
  <section className="no-print grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -590,6 +786,242 @@ export default function PawsitiveStaysApp() {
  </section>
  </div>
  ) : (
+ /* GUEST WELCOME (profile tab when signed out) */
+ <div className="space-y-6">
+ <div className="bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/30 rounded-3xl p-8 text-center">
+ <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-slate-950 mx-auto shadow-lg shadow-amber-500/20">
+ <Dog className="w-9 h-9 stroke-[2.2]" />
+ </div>
+ <h2 className="text-3xl font-black text-white mt-4">
+ Your pet&apos;s good name — verified by hotel staff
+ </h2>
+ <p className="text-sm text-slate-300 mt-2 max-w-xl mx-auto leading-relaxed">
+ Create your free pet parent profile, print your QR leave-behind card, and let
+ housekeeping verify how tidy you left the room. Great stays build your Pawsitive
+ Score — and help you earn lower pet deposits on the road.
+ </p>
+ <div className="flex flex-wrap justify-center gap-3 mt-6">
+ <button
+ onClick={() => { setAuthMode('signup'); setAuthError(''); setShowAuth(true); }}
+ className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl text-sm transition"
+ >
+ Create My Free Profile
+ </button>
+ <button
+ onClick={() => { setAuthMode('login'); setAuthError(''); setShowAuth(true); }}
+ className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-6 py-3 rounded-xl text-sm border border-slate-700 transition"
+ >
+ Sign In
+ </button>
+ </div>
+ <p className="text-xs text-slate-500 mt-4">
+ You stay signed in on this device — and you can always sign back in with your email & password.
+ </p>
+ </div>
+
+ <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+ <QrCode className="w-6 h-6 text-amber-400 mb-2" />
+ <h3 className="font-bold text-white text-sm">QR Leave-Behind Card</h3>
+ <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+ Print it or show it on your phone. Staff scan it after checkout — no login needed for them — and answer 4 quick questions.
+ </p>
+ </div>
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+ <Award className="w-6 h-6 text-amber-400 mb-2" />
+ <h3 className="font-bold text-white text-sm">Score & Tier Badges</h3>
+ <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+ Verified stays build your score from Bronze Paw up to AKC Diamond Exhibitor, with a clean-room streak hotels can trust.
+ </p>
+ </div>
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+ <MessagesSquare className="w-6 h-6 text-amber-400 mb-2" />
+ <h3 className="font-bold text-white text-sm">Hotel Intel & Community Forum</h3>
+ <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+ Real pet fees and deposit policies from fellow exhibitors — browse the Hotels and Forum tabs right now, no account needed.
+ </p>
+ </div>
+ </div>
+ </div>
+ )
+ ) : activeTab === 'forum' ? (
+ /* FORUM TAB */
+ <div className="space-y-6">
+ {openThread ? (
+ <div className="space-y-4">
+ <button
+ onClick={() => setOpenThread(null)}
+ className="inline-flex items-center gap-2 text-sm font-bold text-amber-300 hover:text-amber-200"
+ >
+ <ArrowLeft className="w-4 h-4" /> Back to all discussions
+ </button>
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+ <div className="flex flex-wrap items-center gap-2 mb-2">
+ <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+ {openThread.category}
+ </span>
+ <span className="text-xs text-slate-500">
+ {new Date(openThread.createdAt).toLocaleDateString()}
+ </span>
+ </div>
+ <h2 className="text-2xl font-black text-white">{openThread.title}</h2>
+ <p className="text-xs text-slate-400 mt-1">
+ Started by <span className="text-white font-semibold">{openThread.author.name}</span>{' '}
+ (@{openThread.author.handle}) · {openThread.author.tierBadge} · Score {openThread.author.pawsitiveScore}
+ </p>
+ <p className="text-sm text-slate-200 leading-relaxed mt-4 whitespace-pre-wrap">{openThread.body}</p>
+ </div>
+
+ <div className="space-y-3">
+ {openThread.posts.map((post) => (
+ <div key={post.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 ml-0 sm:ml-8">
+ <p className="text-xs text-slate-400">
+ <span className="text-white font-semibold">{post.author.name}</span>{' '}
+ (@{post.author.handle}) · {new Date(post.createdAt).toLocaleDateString()}
+ </p>
+ <p className="text-sm text-slate-200 leading-relaxed mt-1.5 whitespace-pre-wrap">{post.body}</p>
+ </div>
+ ))}
+ {openThread.posts.length === 0 && (
+ <p className="text-sm text-slate-500 ml-0 sm:ml-8">No replies yet — be the first to chime in!</p>
+ )}
+ </div>
+
+ {user ? (
+ <form onSubmit={handleReply} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:ml-8">
+ <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+ Reply as {user.name}
+ </label>
+ <textarea
+ rows={3}
+ required
+ value={replyBody}
+ onChange={(e) => setReplyBody(e.target.value)}
+ placeholder="Share your experience, hotel tip, or show story..."
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white mt-2 focus:border-amber-400 focus:outline-none"
+ />
+ <button
+ type="submit"
+ className="mt-3 inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm transition"
+ >
+ <Send className="w-4 h-4" /> Post Reply
+ </button>
+ </form>
+ ) : (
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:ml-8 text-sm text-slate-300">
+ <button
+ onClick={() => { setAuthMode('signup'); setAuthError(''); setShowAuth(true); }}
+ className="text-amber-300 font-bold hover:text-amber-200"
+ >
+ Join free
+ </button>{' '}
+ or{' '}
+ <button
+ onClick={() => { setAuthMode('login'); setAuthError(''); setShowAuth(true); }}
+ className="text-amber-300 font-bold hover:text-amber-200"
+ >
+ sign in
+ </button>{' '}
+ to join the discussion.
+ </div>
+ )}
+ </div>
+ ) : (
+ <>
+ <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6">
+ <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+ <MessagesSquare className="w-6 h-6 text-amber-400" /> Community Forum
+ </h2>
+ <p className="text-sm text-slate-300 mt-1 max-w-2xl">
+ Pet parents and AKC exhibitors swapping hotel intel, deposit wins, and road stories. Pull up a chair!
+ </p>
+ </div>
+
+ {user ? (
+ <form onSubmit={handleCreateThread} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+ <h3 className="font-bold text-white text-sm">Start a new discussion</h3>
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+ <input
+ required
+ type="text"
+ maxLength={140}
+ placeholder="Discussion title..."
+ value={newThread.title}
+ onChange={(e) => setNewThread({ ...newThread, title: e.target.value })}
+ className="sm:col-span-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+ />
+ <select
+ value={newThread.category}
+ onChange={(e) => setNewThread({ ...newThread, category: e.target.value })}
+ className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+ >
+ <option>Hotel Talk</option>
+ <option>Show Circuit</option>
+ <option>Tips & Tricks</option>
+ <option>Introductions</option>
+ </select>
+ </div>
+ <textarea
+ rows={3}
+ required
+ placeholder="What's on your mind? A hotel that treated you right, a deposit tip, a show weekend story..."
+ value={newThread.body}
+ onChange={(e) => setNewThread({ ...newThread, body: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+ />
+ <button
+ type="submit"
+ className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm transition"
+ >
+ <MessageCircle className="w-4 h-4" /> Post Discussion
+ </button>
+ </form>
+ ) : (
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-sm text-slate-300">
+ <button
+ onClick={() => { setAuthMode('signup'); setAuthError(''); setShowAuth(true); }}
+ className="text-amber-300 font-bold hover:text-amber-200"
+ >
+ Join free
+ </button>{' '}
+ to start a discussion — browsing is open to everyone.
+ </div>
+ )}
+
+ <div className="space-y-3">
+ {forumLoading && <p className="text-sm text-slate-500">Loading discussion...</p>}
+ {forumThreads.map((thread) => (
+ <button
+ key={thread.id}
+ onClick={() => handleOpenThread(thread.id)}
+ className="w-full text-left bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl p-5 transition"
+ >
+ <div className="flex flex-wrap items-center gap-2">
+ <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+ {thread.category}
+ </span>
+ <span className="text-xs text-slate-500">{new Date(thread.createdAt).toLocaleDateString()}</span>
+ </div>
+ <h3 className="text-base font-bold text-white mt-1.5">{thread.title}</h3>
+ <p className="text-xs text-slate-400 mt-1 line-clamp-2">{thread.body}</p>
+ <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
+ <span>
+ by <span className="text-slate-300 font-semibold">{thread.author.name}</span> (@{thread.author.handle})
+ </span>
+ <span className="inline-flex items-center gap-1">
+ <MessageCircle className="w-3.5 h-3.5" /> {thread._count?.posts ?? 0} replies
+ </span>
+ </div>
+ </button>
+ ))}
+ {forumThreads.length === 0 && (
+ <p className="text-sm text-slate-500">No discussions yet — start the first one!</p>
+ )}
+ </div>
+ </>
+ )}
+ </div>
+ ) : (
  /* TAB 2: COMMUNITY HOTEL DEPOSIT & EXPERIENCE HUB */
  <div className="space-y-6">
  <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -604,7 +1036,15 @@ export default function PawsitiveStaysApp() {
  </p>
  </div>
  <button
- onClick={() => setShowNewReviewModal(true)}
+ onClick={() => {
+ if (user) {
+ setShowNewReviewModal(true);
+ } else {
+ setAuthMode('signup');
+ setAuthError('');
+ setShowAuth(true);
+ }
+ }}
  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-3 rounded-xl text-sm shadow-lg transition shrink-0"
  >
  <PlusCircle className="w-4 h-4" />
@@ -860,6 +1300,158 @@ export default function PawsitiveStaysApp() {
  </div>
  )}
  </main>
+
+ {/* Auth Modal (Login / Signup with pet-parent intake) */}
+ {showAuth && (
+ <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto relative">
+ <button
+ onClick={() => setShowAuth(false)}
+ className="absolute top-4 right-4 text-slate-400 hover:text-white"
+ aria-label="Close"
+ >
+ <X className="w-5 h-5" />
+ </button>
+ <div className="flex items-center gap-2 mb-1">
+ <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-slate-950">
+ <Dog className="w-5 h-5" />
+ </div>
+ <h3 className="text-xl font-bold text-white">
+ {authMode === 'signup' ? 'Join Pawsitive Stays' : 'Welcome Back'}
+ </h3>
+ </div>
+ <p className="text-xs text-slate-400 mb-4">
+ {authMode === 'signup'
+ ? 'A few quick questions and we auto-build your profile, QR card, and forum identity.'
+ : 'Sign in with your email and password — you stay signed in on this device.'}
+ </p>
+
+ <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 mb-4">
+ <button
+ onClick={() => { setAuthMode('login'); setAuthError(''); }}
+ className={`flex-1 py-2 rounded-lg text-sm font-semibold ${authMode === 'login' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}
+ >
+ Sign In
+ </button>
+ <button
+ onClick={() => { setAuthMode('signup'); setAuthError(''); }}
+ className={`flex-1 py-2 rounded-lg text-sm font-semibold ${authMode === 'signup' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}
+ >
+ Join Free
+ </button>
+ </div>
+
+ {authError && (
+ <div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 mb-3">
+ {authError}
+ </div>
+ )}
+
+ <form onSubmit={handleAuthSubmit} className="space-y-3">
+ {authMode === 'signup' && (
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Your Name *</label>
+ <input
+ required
+ type="text"
+ placeholder="e.g., Jane Handler"
+ value={authForm.name}
+ onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+ )}
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Email *</label>
+ <input
+ required
+ type="email"
+ placeholder="you@example.com"
+ value={authForm.email}
+ onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Password *</label>
+ <input
+ required
+ type="password"
+ minLength={8}
+ placeholder={authMode === 'signup' ? 'At least 8 characters' : 'Your password'}
+ value={authForm.password}
+ onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+
+ {authMode === 'signup' && (
+ <>
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Dog&apos;s Name(s) *</label>
+ <input
+ required
+ type="text"
+ placeholder="e.g., Biscuit & Gravy"
+ value={authForm.dogNames}
+ onChange={(e) => setAuthForm({ ...authForm, dogNames: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Breed *</label>
+ <input
+ required
+ type="text"
+ placeholder="e.g., Dachshund"
+ value={authForm.dogBreed}
+ onChange={(e) => setAuthForm({ ...authForm, dogBreed: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+ </div>
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Kennel / AKC Affiliation (optional)</label>
+ <input
+ type="text"
+ placeholder="e.g., AKC Exhibitor • Sunshine Dachshund Club"
+ value={authForm.akcClubOrKennel}
+ onChange={(e) => setAuthForm({ ...authForm, akcClubOrKennel: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+ <div>
+ <label className="text-xs text-slate-400 font-semibold">Home City & State (optional)</label>
+ <input
+ type="text"
+ placeholder="e.g., Salineville, OH"
+ value={authForm.homeCityState}
+ onChange={(e) => setAuthForm({ ...authForm, homeCityState: e.target.value })}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white mt-1"
+ />
+ </div>
+ <p className="text-[11px] text-slate-500 leading-relaxed">
+ We auto-fill the rest: your QR card, dog summary line, score (starts at 100), and forum identity all come from these answers.
+ </p>
+ </>
+ )}
+
+ <button
+ type="submit"
+ disabled={authBusy}
+ className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-sm transition"
+ >
+ {authBusy
+ ? 'One moment...'
+ : authMode === 'signup'
+ ? 'Create My Profile'
+ : 'Sign In'}
+ </button>
+ </form>
+ </div>
+ </div>
+ )}
  </div>
  );
 }

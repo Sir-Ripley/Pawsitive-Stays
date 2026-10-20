@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser, toPublicProfile } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
  try {
- const handle = req.nextUrl.searchParams.get('handle') || 'sir-ripley';
+ const handle = req.nextUrl.searchParams.get('handle');
+
+ // No handle requested: return the signed-in user's own profile.
+ if (!handle) {
+ const me = await getCurrentUser();
+ if (!me) {
+ return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+ }
+ return NextResponse.json({ profile: toPublicProfile(me, true) });
+ }
 
  let profile = await prisma.petParent.findUnique({
  where: { handle },
@@ -16,7 +26,7 @@ export async function GET(req: NextRequest) {
  });
 
  // Auto-seed default demo profile if database is freshly initialized
- if (!profile) {
+ if (!profile && handle === 'sir-ripley') {
  profile = await prisma.petParent.create({
  data: {
  email: 'droiden.rr@gmail.com',
@@ -73,7 +83,7 @@ export async function GET(req: NextRequest) {
  });
  }
 
- return NextResponse.json({ profile });
+ return NextResponse.json({ profile: profile ? toPublicProfile(profile) : null });
  } catch (error) {
  console.error('Profile GET error:', error);
  return NextResponse.json({ error: 'Failed to load profile' }, { status: 500 });
@@ -82,9 +92,12 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
  try {
+ const me = await getCurrentUser();
+ if (!me) {
+ return NextResponse.json({ error: 'Sign in to edit your profile.' }, { status: 401 });
+ }
  const body = await req.json();
  const {
- id,
  name,
  akcClubOrKennel,
  dogsSummary,
@@ -93,7 +106,7 @@ export async function PATCH(req: NextRequest) {
  } = body;
 
  const updated = await prisma.petParent.update({
- where: { id },
+ where: { id: me.id },
  data: {
  name,
  akcClubOrKennel,
@@ -109,7 +122,7 @@ export async function PATCH(req: NextRequest) {
  },
  });
 
- return NextResponse.json({ profile: updated });
+ return NextResponse.json({ profile: toPublicProfile(updated, true) });
  } catch (error) {
  console.error('Profile PATCH error:', error);
  return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
