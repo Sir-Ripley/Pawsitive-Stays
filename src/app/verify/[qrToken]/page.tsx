@@ -223,7 +223,32 @@ export default function StaffScanVerifyPage() {
  </div>
  </div>
 
- {/* Question 3: Crates / Furniture Respect */}
+ {/* Question 3: Noise & Respect (1-5 Paws) */}
+ <div>
+ <label className="block text-sm font-bold text-white mb-2">
+ 3. How quiet and respectful was the stay? (Noise, hallway behavior, other guests)
+ </label>
+ <div className="grid grid-cols-5 gap-2">
+ {[1, 2, 3, 4, 5].map((rating) => (
+ <button
+ key={rating}
+ type="button"
+ onClick={() => setNoiseAndRespect(rating)}
+ className={`py-3 rounded-xl font-black text-sm border transition flex flex-col items-center gap-1 ${
+ noiseAndRespect >= rating
+ ? 'bg-amber-500 text-slate-950 border-amber-400'
+ : 'bg-slate-950 text-slate-500 border-slate-800'
+ }`}
+ >
+ <Dog className="w-4 h-4" />
+ {rating}
+ </button>
+ ))}
+ </div>
+ <div className="text-[11px] text-slate-500 mt-1.5">5 = Silent & courteous · 1 = Sustained barking / complaints</div>
+ </div>
+
+ {/* Question 4: Crates / Furniture Respect */}
  <div className="flex items-center justify-between bg-slate-950 border border-slate-800 p-3.5 rounded-2xl">
  <div>
  <div className="text-sm font-bold text-white">
